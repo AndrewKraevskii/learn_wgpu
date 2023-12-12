@@ -19,7 +19,8 @@ struct State {
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
     window: Window,
-    render_pipeline: wgpu::RenderPipeline,
+    render_pipelines: Vec<wgpu::RenderPipeline>,
+    pipeline_index: usize,
 }
 
 impl State {
@@ -56,8 +57,6 @@ impl State {
             .await
             .unwrap();
 
-        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
-
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -82,6 +81,9 @@ impl State {
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
+
+        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -117,6 +119,41 @@ impl State {
             multiview: None,
         });
 
+        let render_pipeline2 = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main2",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
         surface.configure(&device, &config);
         Self {
             window,
@@ -125,7 +162,8 @@ impl State {
             queue,
             config,
             size,
-            render_pipeline,
+            render_pipelines: vec![render_pipeline, render_pipeline2],
+            pipeline_index: 1,
         }
     }
 
@@ -143,7 +181,21 @@ impl State {
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(VirtualKeyCode::Space),
+                        ..
+                    },
+                ..
+            } => {
+                self.pipeline_index = 1 - self.pipeline_index;
+                true
+            }
+            _ => false,
+        }
     }
 
     fn update(&mut self) {
@@ -183,7 +235,7 @@ impl State {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.render_pipelines[self.pipeline_index]);
             render_pass.draw(0..3, 0..1);
         }
 
