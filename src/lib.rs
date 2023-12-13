@@ -74,6 +74,7 @@ struct State {
     num_indices: u32,
     index_buffer: wgpu::Buffer,
     vertex_buffer: wgpu::Buffer,
+    diffuse_texture: texture::Texture,
 }
 
 impl State {
@@ -156,19 +157,20 @@ impl State {
                 label: Some("texture_bind_group_layout"),
             });
         let image_blob = include_bytes!("./capcha.jpg");
-        let texture_data = texture::Texture::from_bytes(&device, &queue, image_blob, "texture")
-            .expect("failed to load image");
+        let diffuse_texture: texture::Texture =
+            texture::Texture::from_bytes(&device, &queue, image_blob, "texture")
+                .expect("failed to load image");
 
         let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture_data.view),
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture_data.sampler),
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
                 },
             ],
             label: Some("diffuse_bind_group"),
@@ -241,6 +243,7 @@ impl State {
             render_pipeline,
 
             diffuse_bind_group,
+            diffuse_texture,
             num_indices,
             index_buffer,
             vertex_buffer,
