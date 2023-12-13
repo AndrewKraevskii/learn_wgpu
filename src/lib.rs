@@ -1,4 +1,5 @@
 mod texture;
+
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{
     event::*,
@@ -37,25 +38,26 @@ impl Vertex {
 const VERTICES: &[Vertex] = &[
     Vertex {
         position: [-0.0868241, 0.49240386, 0.0],
-        tex_coords: [0.4131759, 0.99240386],
+        tex_coords: [0.4131759, 1.0 - 0.99240386],
     }, // A
     Vertex {
         position: [-0.49513406, 0.06958647, 0.0],
-        tex_coords: [0.0048659444, 0.56958647],
+        tex_coords: [0.0048659444, 1.0 - 0.56958647],
     }, // B
     Vertex {
         position: [-0.21918549, -0.44939706, 0.0],
-        tex_coords: [0.28081453, 0.05060294],
+        tex_coords: [0.28081453, 1.0 - 0.05060294],
     }, // C
     Vertex {
         position: [0.35966998, -0.3473291, 0.0],
-        tex_coords: [0.85967, 0.1526709],
+        tex_coords: [0.85967, 1.0 - 0.1526709],
     }, // D
     Vertex {
         position: [0.44147372, 0.2347359, 0.0],
-        tex_coords: [0.9414737, 0.7347359],
+        tex_coords: [0.9414737, 1.0 - 0.7347359],
     }, // E
 ];
+
 const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
 
 struct State {
@@ -75,11 +77,49 @@ struct State {
     index_buffer: wgpu::Buffer,
     vertex_buffer: wgpu::Buffer,
     diffuse_texture: texture::Texture,
+
+    challenge_texture: texture::Texture,
+    challenge: bool,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl State {
-    fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(VirtualKeyCode::Space),
+                        ..
+                    },
+                ..
+            } => {
+                self.challenge = !self.challenge;
+                let texture = if self.challenge {
+                    &self.challenge_texture
+                } else {
+                    &self.diffuse_texture
+                };
+                self.diffuse_bind_group =
+                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        layout: &self.texture_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(&texture.view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                            },
+                        ],
+                        label: Some("diffuse_bind_group"),
+                    });
+                true
+            }
+            _ => false,
+        }
     }
 
     // Creating some of the wgpu types requires async code
@@ -156,7 +196,7 @@ impl State {
                 ],
                 label: Some("texture_bind_group_layout"),
             });
-        let image_blob = include_bytes!("./capcha.jpg");
+        let image_blob = include_bytes!("./ivan.jpg");
         let diffuse_texture: texture::Texture =
             texture::Texture::from_bytes(&device, &queue, image_blob, "texture")
                 .expect("failed to load image");
@@ -175,6 +215,11 @@ impl State {
             ],
             label: Some("diffuse_bind_group"),
         });
+
+        let image_blob = include_bytes!("./nerd.jpg");
+        let challenge_texture: texture::Texture =
+            texture::Texture::from_bytes(&device, &queue, image_blob, "texture")
+                .expect("failed to load image");
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -247,6 +292,9 @@ impl State {
             num_indices,
             index_buffer,
             vertex_buffer,
+            challenge_texture,
+            texture_bind_group_layout,
+            challenge: false,
         }
     }
 
