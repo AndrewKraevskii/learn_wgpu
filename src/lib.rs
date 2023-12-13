@@ -44,7 +44,7 @@ const VERTICES: &[Vertex] = &[
     }, // B
     Vertex {
         position: [-0.21918549, -0.44939706, 0.0],
-        color: [0.5, 1.0, 0.5],
+        color: [0.5, 0.0, 0.5],
     }, // C
     Vertex {
         position: [0.35966998, -0.3473291, 0.0],
@@ -52,7 +52,7 @@ const VERTICES: &[Vertex] = &[
     }, // D
     Vertex {
         position: [0.44147372, 0.2347359, 0.0],
-        color: [1.0, 0.0, 0.5],
+        color: [0.5, 0.0, 0.5],
     }, // E
 ];
 
@@ -76,24 +76,12 @@ struct State {
 }
 
 impl State {
-    fn input(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Space),
-                        ..
-                    },
-                ..
-            } => true,
-            _ => false,
-        }
+    fn input(&mut self, _event: &WindowEvent) -> bool {
+        false
     }
 
     // Creating some of the wgpu types requires async code
     async fn new(window: Window) -> Self {
-        let number_vertices = VERTICES.len() as u32;
         let size = window.inner_size();
 
         let instance = wgpu::Instance::default();
@@ -113,11 +101,8 @@ impl State {
                 &wgpu::DeviceDescriptor {
                     features: wgpu::Features::empty(),
 
-                    limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits::downlevel_webgl2_defaults()
-                    } else {
-                        wgpu::Limits::default()
-                    },
+                    limits: wgpu::Limits::default(),
+
                     label: None,
                 },
                 None,
@@ -278,40 +263,13 @@ impl State {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run() {
-    cfg_if::cfg_if! {
-        if #[cfg(target_arch = "wasm32")] {
-            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
-        } else {
-            env_logger::init();
-        }
-    }
+    env_logger::init();
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let mut state = State::new(window).await;
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        // Winit prevents sizing with CSS, so we have to set
-        // the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
-
-        use winit::platform::web::WindowExtWebSys;
-        web_sys::window()
-            .and_then(|win| win.document())
-            .and_then(|doc| {
-                let dst = doc.get_element_by_id("wasm-example")?;
-                let canvas = web_sys::Element::from(window.canvas());
-                dst.append_child(&canvas).ok()?;
-                Some(())
-            })
-            .expect("Couldn't append canvas to document body.");
-    }
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
